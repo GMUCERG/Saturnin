@@ -1,0 +1,119 @@
+Na, Nm, Nc : the number of complete blocks of associated data, plaintext, and ciphertextmessage, respectively
+Ina, Inm, Inc : binary variables equal to 1 if the last block of the respective data type is incomplete, and 0 otherwise
+Blm, Bla, Blc
+
+v1: "Slow-turnin"
+
+a.  Design goal
+
+Support for authenticated encryption, authenticated decryption and hashing
+Folded architecture (~20 cycles per round), maximize throughput given the following constraints:
+       1) < 2000 LUTs
+       2) No BRAMs
+       3) no DSP units
+
+b.  Supported maximum sizes of inputs
+
+2^16-1 Bytes
+
+c.  Reference software implementation
+
+src_sw/crypto_aead/saturninctrcascadev2/ref/
+src_sw/crypto_hash/saturninhashv2/ref/
+
+d.  Non-default values of generics and constants
+
+None
+
+e.  Block sizes
+
+AD block size = 256 bites
+Plaintext/Ciphertext block size = 256 bits
+
+f.  Execution times
+
+Execution time of authenticated encryption:
+52 + (251 + 200*Na + 251) + 16 + (251 + 200*Nm) + 16
+
+Execution time of authenticated decryption:
+52 + (251 + 200*Na + 251) + 16 + (44 + 200*Nc) + 17
+
+Execution time of hashing:
+52 + (251 + 260*Nh)
+
+g.  Latencies
+
+Latency of authenticated encryption:
+-
+
+Latency of authenticated decryption:
+-
+
+h.  Difference between execution times for a new key and the same key
+
+Authenticated encryption:
+16
+
+Authenticated decryption:
+16
+
+--------------------------------
+
+
+v2: SuperSaturnin
+
+a.  Design goal
+
+* Unrolled "SuperRound"
+Support for authenticated encryption, authenticated decryption and hashing
+Unrolled architecture (1 cycle per "SuperRound"), maximize throughput given the following constraints:
+       1) < 2000 LUTs
+       2) No BRAMs
+       3) no DSP units
+
+      
+b.  Supported maximum sizes of inputs
+
+2^16-1 Bytes
+
+c.  Reference software implementation
+
+src_sw/crypto_aead/saturninctrcascadev2/ref/
+src_sw/crypto_hash/saturninhashv2/ref/
+
+d.  Non-default values of generics and constants
+
+None
+
+e.  Block sizes
+
+AD block size = 256 bites
+Plaintext/Ciphertext block size = 256 bits
+
+f.  Execution times
+
+Execution time of authenticated encryption:
+52 + (44 + 27*Na + 44) + 16 + (44 + 27*Nm) + 16
+
+Execution time of authenticated decryption:
+52 + (44 + 27*Na + 44) + 16 + (44 + 27*Nc) + 17
+
+Execution time of hashing:
+52 + (44 + 33*Nh)
+
+g.  Latencies
+
+Latency of authenticated encryption:
+-
+
+Latency of authenticated decryption:
+-
+
+h.  Difference between execution times for a new key and the same key
+
+
+Authenticated encryption:
+16
+
+Authenticated decryption:
+16

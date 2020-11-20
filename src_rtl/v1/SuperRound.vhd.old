@@ -1,0 +1,120 @@
+--------------------------------------------------------------------------------
+--! @file       SuperRound.vhd
+--! @brief      SuperRound for Saturnin
+--! @author     Rishub Nagpal <rnagpal2@gmu.edu>
+--! @copyright  Copyright (c) 2020 Cryptographic Engineering Research Group
+--!             ECE Department, George Mason University Fairfax, VA, U.S.A.
+--!             All rights Reserved.
+--! @license    This project is released under the GNU Public License.
+--!             The license and distribution terms for this file may be
+--!             found in the file LICENSE in this distribution or at
+--!             http://www.gnu.org/licenses/gpl-3.0.txt
+--! @note       This is publicly available encryption source code that falls
+--!             under the License Exception TSU (Technology and software-
+--!             unrestricted)
+--------------------------------------------------------------------------------
+library IEEE;
+use ieee.STD_LOGIC_1164.all;
+use work.design_pkg.all;
+
+entity SuperRoundOld is
+
+  port (
+    clk : in std_logic;
+    mi              : in  std_logic_vector(CCW -1 downto 0);
+    co              : out std_logic_vector(CCW -1 downto 0);
+    ld_col : in std_logic_vector(1 downto 0);
+    en_col : in std_logic;
+    sel_col : in std_logic_vector(1 downto 0);
+    even_shift_in : in std_logic;
+    sel_output : in std_logic_vector(1 downto 0);
+    odd_ld : in std_logic;
+    transpose_ld : in std_logic;
+    transpose_rot : in std_logic;
+    srr_rot : in std_logic;
+    srr_ld : in std_logic;
+    sel_round_input : in  std_logic;
+    key             : in  std_logic_vector(CCW -1 downto 0);
+    add_RC          : in  std_logic;
+    RC              : in  std_logic_vector(CCW -1 downto 0));
+
+end entity SuperRoundOld;
+
+architecture behavioral of SuperRoundOld is
+  signal transpose_in : std_logic_vector(CCW -1 downto 0);
+  signal even_in : std_logic_vector(CCW -1 downto 0);
+  signal even_out : std_logic_vector(4*CCW -1 downto 0);
+  signal odd_out : std_logic_vector(CCW -1 downto 0);
+  signal RC_mux : std_logic_vector(CCW -1 downto 0);
+  signal transpose_out : std_logic_vector(CCW -1 downto 0);
+  signal key_xor : std_logic_vector(CCW -1 downto 0);
+  signal ld_col_s : std_logic_vector(3 downto 0);
+
+  type sr_arr is array(0 to 3) of std_logic_vector(4*CCW -1 downto 0);
+  signal sr_r : sr_arr;
+  signal sr_in : std_logic_vector(CCW -1 downto 0);
+
+
+begin  -- architecture behavioral
+
+  transpose_in <= mi when sel_round_input = '1' else RC_mux;
+
+  i_Transpose: entity work.Transpose
+    port map (
+      input  => transpose_in,
+      output => transpose_out,
+      ld     => transpose_ld,
+      rot    => transpose_rot,
+      clk    => clk);
+
+  co <= transpose_out;
+
+  sr_in <= transpose_out when sel_round_input = '1' else RC_mux;
+
+  registers : process(clk)
+  begin
+    if rising_edge(clk) then
+        if ld_col_s = "0001" then
+          sr_r(0) <= sr_in & sr_r(0)(4*CCW -1 downto CCW);
+        elsif ld_col_s = "0010" then
+          sr_r(1) <= sr_in & sr_r(0)(4*CCW -1 downto CCW);
+        elsif ld_col_s = "0100" then
+          sr_r(2) <= sr_in & sr_r(0)(4*CCW -1 downto CCW);
+        elsif ld_col_s = "1000" then
+          sr_r(3) <= sr_in & sr_r(0)(4*CCW -1 downto CCW);
+        end if;
+    end if;
+  end process registers;
+
+  with sel_col select even_in <=
+    sr_r(0)(CCW -1 downto 0) when "00",
+    sr_r(1)(CCW -1 downto 0) when "01",
+    sr_r(2)(CCW -1 downto 0) when "10",
+    sr_r(3)(CCW -1 downto 0) when others;
+
+   
+  with (en_col & ld_col) select ld_col_s <=
+    "0001" when "100",
+    "0010" when "101",
+    "0100" when "110",
+    "1000" when "111",
+    "0000" when others;
+ 
+  i_Even: entity work.Even
+    port map (
+      input  => even_in,
+      output => even_out,
+      shift_in => even_shift_in,
+      clk    => clk);
+  i_Odd: entity work.Odd
+    port map (
+      input  => even_out,
+      output => odd_out,
+      load => odd_ld,
+      sel_output => sel_output,
+      clk    => clk);
+
+  key_xor <= odd_out xor key;
+  RC_mux <= RC xor key_xor when add_RC = '1' else key_xor;
+
+end architecture behavioral;

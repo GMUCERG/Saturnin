@@ -1,0 +1,262 @@
+--------------------------------------------------------------------------------
+--! @file       Saturnin.vhd
+--! @brief      Saturnin block cipher
+--! @author     Rishub Nagpal <rnagpal2@gmu.edu>
+--! @copyright  Copyright (c) 2020 Cryptographic Engineering Research Group
+--!             ECE Department, George Mason University Fairfax, VA, U.S.A.
+--!             All rights Reserved.
+--! @license    This project is released under the GNU Public License.
+--!             The license and distribution terms for this file may be
+--!             found in the file LICENSE in this distribution or at
+--!             http://www.gnu.org/licenses/gpl-3.0.txt
+--! @note       This is publicly available encryption source code that falls
+--!             under the License Exception TSU (Technology and software-
+--!             unrestricted)
+--------------------------------------------------------------------------------
+library IEEE;
+use IEEE.STD_LOGIC_1164.all;
+use ieee.numeric_std.all;
+use work.design_pkg.all;
+
+entity Saturnin is
+  port (
+    clk : in std_logic;
+    rst : in std_logic;
+    -- data signals
+    key : in std_logic_vector(CCW -1 downto 0);
+    R : in std_logic_vector(4 downto 0);
+    D : in std_logic_vector(3 downto 0);
+    din : in std_logic_vector(CCW -1 downto 0);
+    dout : out std_logic_vector(CCW -1 downto 0);
+   -- interface
+    init : in std_logic;
+    done_init : out std_logic;
+    key_ready : out std_logic;
+    key_valid : in std_logic;
+    din_valid : in std_logic;
+    start : in std_logic;
+    done : in std_logic
+    --rot_key : in std_logic;
+    --din : in std_logic_vector(0 to CCW -1);
+    --dout : out std_logic_vector(0 to CCW -1);
+    --sel_din : in std_logic;
+    --sel_key : in std_logic;
+
+);
+end Saturnin;
+
+architecture Behavioral of Saturnin is
+  --FSM
+  type state_t is (RESET,
+                   IDLE,
+                   ABSORB_KEY,
+                   ABSORB_MSG,
+                   INIT_ROUND,
+                   ROUND);
+
+  signal n_state_s, state_s : state_t;
+
+  -- key signals
+  signal key_r : std_logic_vector(DBLK_SIZE -1 downto 0);
+  signal key_mux : std_logic_vector(CCW -1 downto 0);
+  signal key_s : std_logic_vector(CCW -1 downto 0);
+  signal sel_key : std_logic;
+  signal ld_key : std_logic;
+  signal rot_Key : std_logic;
+  -- din
+  signal sel_din : std_logic;
+  signal din_mux : std_logic_vector(CCW -1 downto 0);
+  -- RC signals
+  signal ld_RC  : std_logic;
+  signal en_RC  : std_logic;
+  signal sel_RC : std_logic;
+  signal add_RC : std_logic;
+  signal RC     : std_logic_vector(CCW -1 downto 0);
+  -- SuperRound signals
+  signal mi              : std_logic_vector(CCW -1 downto 0);
+  signal co              : std_logic_vector(CCW -1 downto 0);
+  signal sel_round_input       : std_logic;
+  signal sel_col         : std_logic_vector(1 downto 0);
+  signal shift_col       : std_logic_vector(1 downto 0);
+  signal shift_col_cnt_r : unsigned(1 downto 0);
+  signal shift_col_cnt_s : unsigned(1 downto 0);
+  signal round_cnt_s, round_cnt_r : integer range 0 to 16 - 1; -- TODO change
+                                                               -- to constant
+  signal en_col          : std_logic;
+  signal sel_output      : std_logic_vector(1 downto 0);
+  signal transpose_ld    : std_logic;
+  signal transpose_rot   : std_logic;
+  signal odd_ld          : std_logic;
+  signal ld_col          : std_logic_vector(1 downto 0);
+  signal srr_rot         : std_logic;
+  signal srr_ld          : std_logic;
+  signal even_shift_in : std_logic;
+  -- counters
+  signal word_cnt_r, word_cnt_s : integer range 0 to DBLK_WORDS -1;
+begin
+
+
+  FSM_state_register : process(clk)
+  begin
+    if rising_edge(clk) then
+      if rst = '1' then
+        state_s <= RESET;
+      else
+        state_s <= n_state_s;
+      end if;
+    end if;
+  end process FSM_state_register;
+
+  FSM_control_path : process(all)
+  begin
+    n_state_s <= state_s;
+    word_cnt_s <= word_cnt_r;
+    shift_col_cnt_s <= shift_col_cnt_r;
+    round_cnt_s <= round_cnt_r;
+    key_ready <= '0';
+    done_init <= '0';
+    ld_key <= '0';
+    rot_key <= '0';
+    transpose_ld <= '0';
+    transpose_rot <= '0';
+    sel_round_input <= '0';
+    en_col <= '0';
+    odd_ld <= '0';
+    even_shift_in <= '0';
+    case state_s is
+      when RESET =>
+        n_state_s <= IDLE;
+      when IDLE =>
+        word_cnt_s <= 0;
+        shift_col_cnt_s <= "00";
+        if init = '1' then
+          ld_key <= '1';
+          key_ready <= '1';
+          n_state_s <= ABSORB_KEY;
+        elsif start = '1' then
+          transpose_ld <= '1';
+          sel_round_input <= '1';
+          round_cnt_s <= to_integer(unsigned(R));
+          word_cnt_s <= word_cnt_r + 1;
+          rot_key <= '1';
+          n_state_s <= ABSORB_MSG;
+        end if;
+      when ABSORB_KEY =>
+        key_ready <= '1';
+        if word_cnt_r = DBLK_WORDS -1 then
+          n_state_s <= IDLE;
+          word_cnt_s <= 0;
+          done_init <= '1';
+          key_ready <= '0';
+        elsif key_valid = '1' then
+          ld_key <= '1';
+          word_cnt_s <= word_cnt_r + 1;
+        end if;
+      when ABSORB_MSG =>
+        sel_round_input <= '1';
+        if word_cnt_r = DBLK_WORDS -1 then
+          n_state_s <= INIT_ROUND;
+          transpose_ld <= '1';
+          rot_key <= '1';
+          word_cnt_s <= 0;
+        elsif din_valid = '1' then
+          transpose_ld <= '1';
+          rot_key <= '1';
+          word_cnt_s <= word_cnt_r + 1;
+        end if;
+      when INIT_ROUND =>
+        sel_round_input <= '1';
+        transpose_rot <= '1';
+        en_col <= '1';
+        if word_cnt_r = DBLK_WORDS - 1 then
+          word_cnt_s <= 0;
+          n_state_s <= ROUND;
+        else
+          word_cnt_s <= word_cnt_r + 1;
+          if word_cnt_r > 0 and word_cnt_r mod 4 = 0 then
+            shift_col_cnt_s <= shift_col_cnt_r + 1;
+          end if;
+        end if;
+      when ROUND =>
+        if round_cnt_r = 0 then
+          n_state_s <= IDLE;
+        else
+          even_shift_in <= '1';
+          if word_cnt_r = 3 then
+            even_shift_in <= '0';
+            odd_ld <= '1';
+            n_state_s <= IDLE;
+          else
+            word_cnt_s <= word_cnt_r + 1;
+          end if;
+        end if;
+      when others =>
+        null;
+      end case;
+  end process FSM_control_path;
+
+  counters : process(clk)
+  begin
+    if rising_edge(clk) then
+      if rst = '1' then
+        word_cnt_r <= 0;
+        shift_col_cnt_r <= (others => '0');
+        round_cnt_r <= 0;
+      else
+        shift_col_cnt_r <= shift_col_cnt_s;
+        word_cnt_r <= word_cnt_s;
+        round_cnt_r <= round_cnt_s;
+      end if;
+    end if;
+  end process counters;
+
+  registers: process(clk)
+  begin
+    if rising_edge(clk) then
+      if ld_key = '1' then
+        key_r <= key & key_r(DBLK_SIZE - 1 downto CCW);
+      elsif rot_key = '1' then
+        key_r <= key_r(CCW -1 downto 0) & key_r(DBLK_SIZE - 1 downto CCW);
+      end if;
+    end if;
+  end process registers;
+
+
+
+
+  ld_col <= std_logic_vector(shift_col_cnt_r);
+
+-- Round constants
+  i_RC: entity work.RC(Behavioral)
+    port map (
+      R      => R,
+      D      => D,
+      ld_RC  => ld_RC,
+      en_RC  => en_RC,
+      sel_RC => sel_RC,
+      clk    => clk,
+      RC     => RC);
+
+  SuperRound_1: entity work.SuperRound
+    port map (
+      clk        => clk,
+      input      => input,
+      sel_sigma  => sel_sigma,
+      sel_SR     => sel_SR,
+      rot        => rot,
+      rot_inv    => rot_inv,
+      sel_SR_inv => sel_SR_inv,
+      en_mds_in  => en_mds_in,
+      en_sbox_r  => en_sbox_r,
+      en_mds_out => en_mds_out,
+      ld_round   => ld_round,
+      rot_in     => rot_in,
+      shift_mds  => shift_mds,
+      output     => output);
+ 
+  key_s <= key_r(CCW -1 downto 0);
+  key_mux <= key_s(CCW -1 downto 5) & key_s(4 downto 0) when sel_key = '1' else key_s;
+
+  mi <= din xor key_mux; --when sel_din = '1' else din;
+
+end architecture Behavioral;
