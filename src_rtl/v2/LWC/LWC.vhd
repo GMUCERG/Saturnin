@@ -53,8 +53,7 @@ entity LWC is
         fdi_ready        : out  std_logic;
         fdo_data         : out std_logic_vector(CCW-1 downto 0);
         fdo_valid        : out std_logic;
-        fdo_ready        : in  std_logic;
-        fdi_last : in std_logic
+        fdo_ready        : in  std_logic
     );
 end LWC;
 
@@ -203,8 +202,7 @@ begin
                 fdi_ready       => fdi_ready                               ,
                 fdo_valid       => fdo_valid                               ,
                 fdo_ready       => fdo_ready,
-                fdo_data        => fdo_data,
-                fdi_last => fdi_last
+                fdo_data        => fdo_data
             );
     Inst_PostProcessor: entity work.PostProcessor(PostProcessor)
     	generic map(

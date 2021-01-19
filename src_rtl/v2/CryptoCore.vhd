@@ -1,19 +1,19 @@
 --------------------------------------------------------------------------------
 --! @file       CryptoCore.vhd
---! @brief      Implementation of the Saturnin cipher
---!
---! @author     Patrick Karl <patrick.karl@tum.de>
---! @copyright  Copyright (c) 2019 Chair of Security in Information Technology     
---!             ECE Department, Technical University of Munich, GERMANY
+--! @brief      Top level file for Saturnin Cipher
+--! @author     Rishub Nagpal <rnagpal2@gmu.edu>
+--! @copyright  Copyright (c) 2020 Cryptographic Engineering Research Group
+--!             ECE Department, George Mason University Fairfax, VA, U.S.A.
 --!             All rights Reserved.
---! @license    This project is released under the GNU Public License.          
---!             The license and distribution terms for this file may be         
---!             found in the file LICENSE in this distribution or at            
---!             http://www.gnu.org/licenses/gpl-3.0.txt                         
---! @note       This is publicly available encryption source code that falls    
---!             under the License Exception TSU (Technology and software-       
---!             unrestricted)                                                  
---------------------------------------------------------------------------------
+--! @license    This project is released under the GNU Public License.
+--!             The license and distribution terms for this file may be
+--!             found in the file LICENSE in this distribution or at
+--!             http://www.gnu.org/licenses/gpl-3.0.txt
+--! @note       This is publicly available encryption source code that falls
+--!             under the License Exception TSU (Technology and software-
+--!             unrestricted)
+-------------------------------------------------------------------------------- 
+
 
 library ieee;
 use ieee.numeric_std.all;
@@ -61,8 +61,7 @@ entity CryptoCore is
         fdi_ready        : out  std_logic;
         fdo_valid        : out std_logic;
         fdo_ready        : in  std_logic;
-        fdo_data         : out std_logic_vector(CCW -1 downto 0);
-        fdi_last : in std_logic
+        fdo_data         : out std_logic_vector(CCW -1 downto 0)
 
     );
 end CryptoCore;
@@ -70,7 +69,6 @@ end CryptoCore;
 architecture behavioral of CryptoCore is
 
     --! Constant to check for empty hash
-    
     -- State signals
   type state_t is (RESET,
                    IDLE,
@@ -163,7 +161,7 @@ architecture behavioral of CryptoCore is
   signal ld_new_key : std_logic;
   signal key_ready_s : std_logic;
   signal bdi_partial_r : std_logic;
-
+  
   signal bdo_pad_loc_s : std_logic_vector(CCWdiv8 -1 downto 0);
   signal bdo_valid_bytes_s : std_logic_vector(CCWdiv8 -1 downto 0);
 
@@ -598,6 +596,7 @@ begin
           --   din_valid <= '0';
           if bdi_eot = '1' then
             stop <= '1';
+            
             if word_cnt_r = DBLK_WORDS -1 and bdi_valid_bytes = "11" then
               word_cnt_s <= 0; --write empty to fifo
               n_state_s <= PADD_CT;
@@ -633,7 +632,8 @@ begin
         if word_cnt_r = DBLK_WORDS then
           n_state_s <= WAIT_CASCADE_CT;
           word_cnt_s <= 0;
-          if fdi_last = '1' then
+          
+          if fdi_valid = '0' then
             D <= "0101";
           else
             D <= "0100";
@@ -650,7 +650,7 @@ begin
           dout_ready <= '1';
         end if;
       when WAIT_CASCADE_CT =>
-        if fdi_last = '1' then
+        if fdi_valid = '0' then
           mode <= '0';
           if done = '1' then
             if decrypt_in = '1' then
@@ -670,7 +670,8 @@ begin
         if word_cnt_r = DBLK_WORDS then
           n_state_s <= WAIT_CASCADE_CT;
           word_cnt_s <= 0;
-          if fdi_last = '1' then
+         
+          if fdi_valid = '0' then
             D <= "0101";
           else
             D <= "0100";

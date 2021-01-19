@@ -33,8 +33,7 @@ entity fwft_fifo_tb is
         -- Output Port
         dout        : out   std_logic_vector(G_W - 1 downto 0);
         dout_valid  : out   std_logic;
-        dout_ready  : in    std_logic;
-        last : out std_logic
+        dout_ready  : in    std_logic
         --prog_full_th    : in    std_logic_vector(G_LOG2DEPTH - 1 downto 0);
         --prog_full       : out   std_logic
     );
@@ -78,7 +77,6 @@ begin
     empty_s         <= '1' when (entries_s <= 0)            else '0';
     din_ready_s     <= not full_s;
     dout_valid_s    <= not empty_s;
-    last <= empty_s;
 
     -- Counting the numbers of entries, setting rd-/wr-pointers and
     -- writing the data into the memory.
